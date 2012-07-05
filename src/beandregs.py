@@ -26,6 +26,7 @@ import contextlib
 import logging
 import os
 import re
+import shutil
 import sys
 import urllib2
 import urlparse
@@ -34,12 +35,13 @@ import PIL.Image
 
 import pu.utils
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 _logger = logging.getLogger(__name__)
-_defaults = dict(outdir = 'beandregs-output', width = 300, height = 300)
+_defaults = dict(outdir = 'beandregs-output', resize_dir = 'beandregs-output',
+    width = 300, height = 300, log_file = 'beandregs-images-log.ini')
 
-def get_image_and_resize(url, width, height, basename):
+def get_image_and_resize(url, width, height, basename, resize_dir = None):
     if os.path.exists(url):
         _logger.debug('Using local file.')
         url = 'file:///%s' % os.path.abspath(url)
@@ -70,6 +72,13 @@ def get_image_and_resize(url, width, height, basename):
             _logger.debug('Resize not needed.  Renaming %s to %s.' % (
                 orig, resized))
             os.rename(orig, resized)
+        if resize_dir:
+            absor = os.path.realpath(resized)
+            absnr = os.path.realpath(os.path.join(
+                resize_dir, os.path.basename(resized)))
+            if absor != absnr:
+                shutil.copy2(resized, resize_dir)
+                _logger.debug('Copied %s to %s.' % (resized, resize_dir))
 
 def load_config(cfg_file = None):
     _logger.debug('Load config file: %s' % cfg_file)
@@ -126,10 +135,15 @@ def main(args_list = None):
     _a = arg_parser.add_argument
     _a('-i', '--images', dest = 'images', default = sys.stdin,
         help = 'Image-location file to use. [default: stdin]')
+    _a('-l', '--log', dest = 'log_file', default = None,
+        help = 'Log successes to this file.')
     _a('-c', '--config', dest = 'config', help = 'Configuration file to use.')
     _a('-o', '--output-dir', dest = 'outdir',
         help = 'Directory to use for image output. [default: %s]' %
         _defaults['outdir'])
+    _a('-r', '--resize-dir', dest = 'resize_dir',
+        help = 'Directory to use for resized-image output. [default: %s' %
+        _defaults['resize_dir'])
     _a('-W', '--width', dest = 'width', type = int,
         help = 'Width to resize to. [default: %d]' % _defaults['width'])
     _a('-H', '--height', dest = 'height', type = int,
@@ -143,20 +157,30 @@ def main(args_list = None):
     cfg = load_config(args.config)
 
     # Make command line take precedence over config file.
-    cfg.outdir = args.outdir or cfg.outdir
-    cfg.width = args.width or cfg.width
     cfg.height = args.height or cfg.height
+    cfg.log_file = args.log_file or cfg.log_file
+    cfg.outdir = os.path.expanduser(args.outdir or cfg.outdir)
+    cfg.resize_dir = os.path.expanduser(args.resize_dir or cfg.resize_dir)
+    cfg.width = args.width or cfg.width
 
     if not os.path.exists(cfg.outdir):
         _logger.debug('Creating output directory: %s' % cfg.outdir)
         os.makedirs(cfg.outdir, 0755)
 
+    if not os.path.exists(cfg.resize_dir):
+        _logger.debug('Creating resize directory: %s' % cfg.resize_dir)
+        os.makedirs(cfg.resize_dir, 0755)
+
+    log = open(cfg.log_file, 'ab') if cfg.log_file else None
+    if log: log.write('# %s\n' % pu.utils.ISO_8601_time_stamp())
     for name, url in image_locations(args.images):
         _logger.info('[*] %s <-- %s' % (name, url))
         try:
-            get_image_and_resize(
-                url, cfg.width, cfg.height, os.path.join(cfg.outdir, name))
+            get_image_and_resize(url, cfg.width, cfg.height,
+                os.path.join(cfg.outdir, name), cfg.resize_dir)
+            if log: log.write('%s = %s\n' % (name, url))
         except:
             _logger.exception('Exception occurred.')
+    if log: log.close()
 
 if '__main__' == __name__: main()
