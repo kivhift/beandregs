@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012, 2019 Joshua Hughes <kivhift@gmail.com>
+# Copyright (c) 2012, 2019, 2020 Joshua Hughes <kivhift@gmail.com>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,7 @@ import time
 import PIL.Image
 import requests
 
-__version__ = '1.2.0'
+__version__ = '1.3.0'
 
 _logger = logging.getLogger(__name__)
 _defaults = dict(
@@ -174,6 +174,8 @@ def main(args_list = None):
         , help = f'Height to resize to [default: {_defaults["height"]}]')
     _a('-d', '--debug', action = 'store_true'
         , help = 'Send all logging output to console')
+    _a('-s', '--show-config', action = 'store_true'
+        , help = 'Just print configuration and exit')
 
     args = arg_parser.parse_args(args_list or sys.argv[1:])
 
@@ -186,6 +188,10 @@ def main(args_list = None):
     cfg.outdir = os.path.expanduser(args.outdir or cfg.outdir)
     cfg.resize_dir = os.path.expanduser(args.resize_dir or cfg.resize_dir)
     cfg.width = int(args.width or cfg.width)
+
+    if args.show_config:
+        print(cfg)
+        sys.exit(0)
 
     if not os.path.exists(cfg.outdir):
         _logger.debug(f'Creating output directory: {cfg.outdir}')
